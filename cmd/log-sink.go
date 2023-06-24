@@ -11,6 +11,7 @@ import (
 )
 
 type logSink struct {
+	maxSizeMB    int64
 	maxSizeBytes int64
 	logFile      string
 	bufSize      int64
@@ -59,11 +60,11 @@ func main() {
 }
 
 func parseCmdlineArgs() *logSink {
-	logFile := flag.String("logfile", fmt.Sprintf("./%d.log", os.Getpid()), "full log file path including filename")
-	maxSizeBytes := flag.Int64("size", 10*1024*1024, "max log file size in bytes")
-	bufSize := flag.Int64("bufsize", 2*1024, "max read buffer size")
+	logFile := flag.String("logfile", fmt.Sprintf("./pid-%d.log", os.Getpid()), "full log file path including filename")
+	maxSizeMB := flag.Int64("size", 10, "max log file size in MB")
+	bufSize := flag.Int64("bufsize", 4*1024, "max read buffer size")
 
 	flag.Parse()
 
-	return &logSink{maxSizeBytes: *maxSizeBytes, logFile: *logFile, bufSize: *bufSize}
+	return &logSink{maxSizeMB: *maxSizeMB, maxSizeBytes: *maxSizeMB * 1024 * 1024, logFile: *logFile, bufSize: *bufSize}
 }
