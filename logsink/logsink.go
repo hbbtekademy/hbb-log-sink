@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"os"
+	"os/exec"
 	"time"
 )
 
@@ -14,6 +16,7 @@ type Params struct {
 	LogFilePerm  fs.FileMode
 	MaxSizeBytes int64
 	BufSize      int64
+	Compress     bool
 }
 
 func Run(params *Params, rd io.Reader) error {
@@ -34,7 +37,7 @@ func Run(params *Params, rd io.Reader) error {
 	poolSize := 100
 	bufPool := make(chan []byte, poolSize)
 	for i := 0; i < poolSize; i++ {
-		buf := make([]byte, 1024*4)
+		buf := make([]byte, params.BufSize)
 		bufPool <- buf
 	}
 
@@ -69,9 +72,15 @@ func Run(params *Params, rd io.Reader) error {
 			if err != nil {
 				return fmt.Errorf("failed closing %s. error: %v", f.Name(), err)
 			}
-			err = os.Rename(params.LogFile, fmt.Sprintf("%s.%d", params.LogFile, time.Now().UnixMilli()))
+
+			rolledOverFile := fmt.Sprintf("%s.%d", params.LogFile, time.Now().UnixMilli())
+			err = os.Rename(params.LogFile, rolledOverFile)
 			if err != nil {
 				return fmt.Errorf("failed renaming %s. error: %v", params.LogFile, err)
+			}
+
+			if params.Compress {
+				go compress(rolledOverFile)
 			}
 
 			f, err = os.OpenFile(params.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, params.LogFilePerm)
@@ -82,4 +91,12 @@ func Run(params *Params, rd io.Reader) error {
 	}
 
 	return nil
+}
+
+func compress(file string) {
+	cmd := exec.Command("gzip", file)
+	err := cmd.Run()
+	if err != nil {
+		log.Printf("failed gzipping %s. error: %v", file, err)
+	}
 }

@@ -4,8 +4,10 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestLogSink(t *testing.T) {
@@ -30,8 +32,27 @@ func TestLogSink(t *testing.T) {
 			params: &Params{
 				LogFile:      "../testdata/TC1/TC1.log",
 				LogFilePerm:  0640,
-				MaxSizeBytes: 18,
-				BufSize:      1024,
+				MaxSizeBytes: 12,
+				BufSize:      10,
+			},
+			logs:             []string{"Log line1\n", "Log line2\n", "Log line3\n"},
+			expectedLogFiles: 2,
+		},
+		{
+			name:   "TC2",
+			logDir: "../testdata/TC2",
+			setupFunc: func(logDir string) error {
+				return os.MkdirAll(logDir, 0700)
+			},
+			cleanupFunc: func(logDir string) error {
+				return os.RemoveAll(logDir)
+			},
+			params: &Params{
+				LogFile:      "../testdata/TC2/TC2.log",
+				LogFilePerm:  0640,
+				MaxSizeBytes: 12,
+				BufSize:      10,
+				Compress:     true,
 			},
 			logs:             []string{"Log line1\n", "Log line2\n", "Log line3\n"},
 			expectedLogFiles: 2,
@@ -41,11 +62,14 @@ func TestLogSink(t *testing.T) {
 	errChan := make(chan error, 1)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.setupFunc != nil {
-				err := tc.setupFunc(tc.logDir)
-				if err != nil {
-					t.Fatalf("failed setup. error: %v", err)
-				}
+			if tc.setupFunc == nil || tc.cleanupFunc == nil {
+				t.Fatalf("setupFun and/or cleanupFunc not defined")
+			}
+
+			tc.cleanupFunc(tc.logDir)
+			err := tc.setupFunc(tc.logDir)
+			if err != nil {
+				t.Fatalf("failed setup. error: %v", err)
 			}
 
 			r, w, err := os.Pipe()
@@ -64,6 +88,12 @@ func TestLogSink(t *testing.T) {
 			for _, l := range tc.logs {
 				w.Write([]byte(l))
 			}
+
+			// Wait for gzip completes
+			if tc.params.Compress {
+				time.Sleep(1 * time.Second)
+			}
+
 			w.Close()
 			wg.Wait()
 
@@ -79,15 +109,23 @@ func TestLogSink(t *testing.T) {
 			if len(actualLogFiles) != tc.expectedLogFiles {
 				t.Fatalf("expected: %d log files but got: %d", tc.expectedLogFiles, len(actualLogFiles))
 			}
-
-			if tc.cleanupFunc != nil {
-				func() {
-					err := tc.cleanupFunc(tc.logDir)
-					if err != nil {
-						t.Fatalf("failed cleanup. error: %v", err)
+			if tc.params.Compress {
+				gzipCount := 0
+				for _, l := range actualLogFiles {
+					if strings.HasSuffix(l, ".gz") {
+						gzipCount++
 					}
-				}()
+				}
+				if gzipCount != len(actualLogFiles)-1 {
+					t.Fatalf("expected: %d gzipped files but got: %d", len(actualLogFiles)-1, gzipCount)
+				}
 			}
+
+			err = tc.cleanupFunc(tc.logDir)
+			if err != nil {
+				t.Fatalf("failed cleanup. error: %v", err)
+			}
+
 		})
 	}
 }
