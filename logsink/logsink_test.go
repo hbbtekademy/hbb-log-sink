@@ -20,15 +20,15 @@ func TestLogSink(t *testing.T) {
 	}{
 		{
 			name:   "TC1",
-			logDir: "TC1",
+			logDir: "../testdata/TC1",
 			setupFunc: func(logDir string) error {
-				return os.Mkdir(logDir, 0700)
+				return os.MkdirAll(logDir, 0700)
 			},
 			cleanupFunc: func(logDir string) error {
 				return os.RemoveAll(logDir)
 			},
 			params: &Params{
-				LogFile:      "TC1/TC1.log",
+				LogFile:      "../testdata/TC1/TC1.log",
 				LogFilePerm:  0640,
 				MaxSizeBytes: 18,
 				BufSize:      1024,
@@ -46,15 +46,6 @@ func TestLogSink(t *testing.T) {
 				if err != nil {
 					t.Fatalf("failed setup. error: %v", err)
 				}
-			}
-
-			if tc.cleanupFunc != nil {
-				defer func() {
-					err := tc.cleanupFunc(tc.logDir)
-					if err != nil {
-						t.Fatalf("failed cleanup. error: %v", err)
-					}
-				}()
 			}
 
 			r, w, err := os.Pipe()
@@ -87,6 +78,15 @@ func TestLogSink(t *testing.T) {
 			actualLogFiles := getFiles(tc.logDir)
 			if len(actualLogFiles) != tc.expectedLogFiles {
 				t.Fatalf("expected: %d log files but got: %d", tc.expectedLogFiles, len(actualLogFiles))
+			}
+
+			if tc.cleanupFunc != nil {
+				func() {
+					err := tc.cleanupFunc(tc.logDir)
+					if err != nil {
+						t.Fatalf("failed cleanup. error: %v", err)
+					}
+				}()
 			}
 		})
 	}
