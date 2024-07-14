@@ -21,5 +21,5 @@ Execute following commands on Linux to run benchmarks:
 go build -o loggen.exe loggen/main.go
 go build -o logsink.exe main.go
 time ./loggen.exe > test1.log
-time ./loggen.exe | ./logsink.exe -logfile test2.data -max-size-mb 500 -compress
+time ./loggen.exe | ./logsink.exe -logfile test2.log -max-size-mb 500 -compress
 ```
