@@ -34,16 +34,9 @@ func Run(params *Params, rd io.Reader) error {
 	fsize := fStat.Size()
 	lines := int64(0)
 
-	poolSize := 100
-	bufPool := make(chan []byte, poolSize)
-	for i := 0; i < poolSize; i++ {
-		buf := make([]byte, params.BufSize)
-		bufPool <- buf
-	}
-
+	buf := make([]byte, params.BufSize)
 	reader := bufio.NewReader(rd)
 	for {
-		buf := <-bufPool
 		n, err := reader.Read(buf)
 		if n > 0 {
 			_, err = f.Write(buf[:n])
@@ -52,7 +45,6 @@ func Run(params *Params, rd io.Reader) error {
 			}
 			fsize += int64(n)
 			lines++
-			bufPool <- buf
 		}
 		if err != nil {
 			if err == io.EOF {
